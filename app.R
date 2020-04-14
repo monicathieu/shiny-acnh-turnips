@@ -17,7 +17,7 @@ n_iterations <- 75
 ui <- fluidPage(
    
    # Application title
-   titlePanel("Bayesian turnip estimator"),
+   titlePanel("Bayesian ACNH turnip estimator"),
    
    # Sidebar with a slider input for number of bins 
    sidebarLayout(
@@ -33,70 +33,70 @@ ui <- fluidPage(
                       selected = "none")
        ),
        fluidRow(
-         numericInput("buy_price",
+         textInput("buy_price",
                       "Buy price on Sunday",
                       value = 90)
        ),
        fluidRow(
          column(6,
-                numericInput("sell_price_hd1",
+                textInput("sell_price_hd1",
                              "Sell price Monday morning",
                              value = NA)
          ),
          column(6,
-                numericInput("sell_price_hd2",
+                textInput("sell_price_hd2",
                              "Sell price Monday afternoon",
                              value = NA)
          ),
          column(6,
-                numericInput("sell_price_hd3",
+                textInput("sell_price_hd3",
                              "Sell price Tuesday morning",
                              value = NA)
          ),
          column(6,
-                numericInput("sell_price_hd4",
+                textInput("sell_price_hd4",
                              "Sell price Tuesday afternoon",
                              value = NA)
          ),
          column(6,
-                numericInput("sell_price_hd5",
+                textInput("sell_price_hd5",
                              "Sell price Wednesday morning",
                              value = NA)
          ),
          column(6,
-                numericInput("sell_price_hd6",
+                textInput("sell_price_hd6",
                              "Sell price Wednesday afternoon",
                              value = NA)
          )
        ),
        fluidRow(
          column(6,
-                numericInput("sell_price_hd7",
+                textInput("sell_price_hd7",
                              "Sell price Thursday morning",
                              value = NA)
          ),
          column(6,
-                numericInput("sell_price_hd8",
+                textInput("sell_price_hd8",
                              "Sell price Thursday afternoon",
                              value = NA)
          ),
          column(6,
-                numericInput("sell_price_hd9",
+                textInput("sell_price_hd9",
                              "Sell price Friday morning",
                              value = NA)
          ),
          column(6,
-                numericInput("sell_price_hd10",
+                textInput("sell_price_hd10",
                              "Sell price Friday afternoon",
                              value = NA)
          ),
          column(6,
-                numericInput("sell_price_hd11",
+                textInput("sell_price_hd11",
                              "Sell price Saturday morning",
                              value = NA)
          ),
          column(6,
-                numericInput("sell_price_hd12",
+                textInput("sell_price_hd12",
                              "Sell price Saturday afternoon",
                              value = NA)
          )
@@ -105,7 +105,10 @@ ui <- fluidPage(
      
      # Show a plot of the generated distribution
      mainPanel(
+       p("It ain't cute but it does the job, I hope.",
+         "Please be mindful that it takes a bit of time to re-estimate the probabilities when you update the data."),
        h2("What's the probability you're in a particular pattern overall?"),
+       p("These probabilities are a bit noisy because they're generated from random draws of possible turnip prices."),
        tableOutput("tib"),
        h2("Heatmap plot of possible future turnip prices"),
        p("This plot takes into account overall uncertainty about which pattern you're in."),
@@ -114,15 +117,26 @@ ui <- fluidPage(
          "most of them predict the turnip prices will be in that range."),
        plotOutput("plot"),
        h3("Credits"),
+       p("Built using R, the",
+         a(href ="https://tidyverse.org/", "tidyverse"), "and",
+         a(href = "https://shiny.rstudio.com/", "Shiny"),
+         "by",
+         a(href = "https://github.com/monicathieu", "Monica Thieu.")),
        p("Thanks to",
          a(href = "https://gist.github.com/Treeki/85be14d297c80c8b3c0a76375743325b",
                         "Ninji"),
          "for reverse-engineering the turnip price trend generation algorithm out of the ACNH source code."),
        p("Thanks also to",
-         a(href = "https://turnipprophet.io/index.html", "Mike Bryant"),
-         "and",
-         a(href = "https://elxris.github.io/Turnip-Calculator/", "Christian Ceciliano"),
-         "for their open-source JavaScript turnip trend calculators.")
+         a(href = "https://turnipprophet.io/index.html", "Mike Bryant,"),
+         a(href = "https://elxris.github.io/Turnip-Calculator/", "Christian Ceciliano,"),
+         "and all contributors to those for their open-source JavaScript turnip trend calculators.",
+         "I roughly eyeball-translated their C++/JavaScript code into R to extend it with R's ability to",
+         "numerically estimate the posterior distribution of turnip prices using random draws.",
+         "We stand on the shoulders of giants. :)"),
+       h3("Suggestions?"),
+       p("Please submit an",
+         a(href = "https://github.com/monicathieu/shiny-acnh-turnips/issues",
+           "issue or pull request!"))
      )
    )
 )
@@ -147,10 +161,16 @@ server <- function(input, output) {
       mutate(price = as.integer(price))
   })
   
+  get_buy_price <- reactive({
+    as.integer(input$buy_price)
+  })
+  
   get_draws <- reactive({
     ## construct de whole prior distribution ----
     
     given_prices <- get_givens()
+    
+    buy_price <- get_buy_price()
     
     trends_fluct <- crossing(high1_len = 0:6,
                              dec1_len = 2:3) %>%
@@ -160,12 +180,12 @@ server <- function(input, output) {
       mutate(id = 1:n(),
              posterior = pmap(list(high1_len, dec1_len, high2_len, dec2_len),
                               function (a, b, c, d) {
-                                get_trend_fluct(given_prices, input$buy_price,
+                                get_trend_fluct(given_prices, buy_price,
                                                 a, b, c, d)
                               }),
              prior = pmap(list(high1_len, dec1_len, high2_len, dec2_len),
                           function (a, b, c, d) {
-                            get_trend_fluct(given_prices %>% mutate(price = NA), input$buy_price,
+                            get_trend_fluct(given_prices %>% mutate(price = NA), buy_price,
                                             a, b, c, d)
                           }))
     
@@ -173,31 +193,31 @@ server <- function(input, output) {
       mutate(id = 1:n(), sep = "_",
              posterior = map(peak_start,
                              ~get_trend_spikelg(given_prices,
-                                                input$buy_price,
+                                                buy_price,
                                                 .x)),
              prior = map(peak_start,
                          ~get_trend_spikelg(given_prices %>% mutate(price = NA),
-                                            input$buy_price,
+                                            buy_price,
                                             .x)))
     
     trends_spikesm <- tibble(peak_start = 1:8) %>%
       mutate(id = 1:n(),
              posterior = map(peak_start,
                              ~get_trend_spikesm(given_prices,
-                                                input$buy_price,
+                                                buy_price,
                                                 .x)),
              prior = map(peak_start,
                          ~get_trend_spikesm(given_prices %>% mutate(price = NA),
-                                            input$buy_price,
+                                            buy_price,
                                             .x)))
     
     
     trends_dec <- tibble(id = 1) %>%
       mutate(posterior = map(id, ~given_prices %>%
-                               get_trend_dec(input$buy_price)),
+                               get_trend_dec(buy_price)),
              prior = map(id, ~given_prices %>%
                            mutate(price = NA) %>% 
-                           get_trend_dec(input$buy_price)))
+                           get_trend_dec(buy_price)))
     
     trends_all <- bind_rows(fluct = trends_fluct,
                             spikelg = trends_spikelg,
@@ -265,23 +285,45 @@ server <- function(input, output) {
   
   output$plot <- renderPlot({
     get_draws() %>%
-      group_by(halfday, price) %>%
-      mutate(n = n()) %>%
+      count(halfday, price) %>%
       group_by(halfday) %>%
       mutate(n = n / sum(n)) %>%
       ungroup() %>%
-      # should remove all halfdays where the price was given
+      # boost the density of the plot up
+      # should NA out data from halfdays where the price was given
       # to avoid them skewing the color scale
-      filter(halfday %in% (get_givens() %>% filter(is.na(price)) %>% pull(halfday))) %>%
+      mutate(price = if_else(halfday %in% (get_givens() %>% filter(is.na(price)) %>% pull(halfday)),
+                             price,
+                             NA_integer_),
+             n = na_if(n, 1)) %>%
+      slice(rep(1:n(), 15)) %>%
       arrange(n) %>%
-      ggplot(aes(x = halfday, y = price)) +
-      geom_jitter(aes(color = n), alpha = 0.05) +
-      geom_line(data = get_givens()) +
-      geom_point(data = get_givens()) +
-      geom_hline(yintercept = input$buy_price, linetype = 3) +
+      ggplot(aes(x = factor(halfday, levels = 1:12), y = price)) +
+      geom_jitter(aes(color = n), alpha = 0.3) +
+      geom_line(aes(x = halfday), data = get_givens(), color = "white") +
+      geom_point(data = get_givens(), color = "white") +
+      geom_hline(yintercept = get_buy_price(), color = "white", linetype = 3) +
+      annotate("label",
+               label = glue::glue("Buy price: {get_buy_price()} Bells"),
+               x = 12,
+               y = get_buy_price() + 5, hjust = 1, vjust = 0, color = "white", fill = "black",
+               size = rel(5)) +
+      scale_x_discrete(guide = guide_axis(n.dodge = 2),
+                       breaks = 1:12,
+                       labels = c("Mon morning", "Mon afternoon",
+                                  "Tues morning", "Tues afternoon",
+                                  "Wed morning", "Wed afternoon",
+                                  "Thu morning", "Thu afternoon",
+                                  "Fri morning", "Fri afternoon",
+                                  "Sat morning", "Sat afternoon")) +
       scale_color_viridis_c() +
-      labs(color = "probability") +
-      theme_dark()
+      labs(x = "Day-ish",
+           y = "Possible turnip price (Bells)",
+           color = "probability") +
+      theme_dark() +
+      theme(axis.title = element_text(size = rel(1.5)),
+            axis.text = element_text(size = rel(1)),
+            panel.background = element_rect(fill = "black"))
   })
    
 }
