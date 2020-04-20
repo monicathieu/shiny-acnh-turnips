@@ -11,7 +11,6 @@ library(shiny)
 library(tidyverse)
 library(magrittr)
 source("trends.R")
-n_iterations <- 75
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -34,79 +33,88 @@ ui <- fluidPage(
        ),
        fluidRow(
          textInput("buy_price",
-                      "Buy price on Sunday",
-                      value = 90)
+                   "Buy price on Sunday",
+                   value = 90)
        ),
        fluidRow(
          column(6,
                 textInput("sell_price_hd1",
-                             "Sell price Monday morning",
-                             value = NA)
+                          "Sell price Monday morning",
+                          value = NA)
          ),
          column(6,
                 textInput("sell_price_hd2",
-                             "Sell price Monday afternoon",
-                             value = NA)
+                          "Sell price Monday afternoon",
+                          value = NA)
          ),
          column(6,
                 textInput("sell_price_hd3",
-                             "Sell price Tuesday morning",
-                             value = NA)
+                          "Sell price Tuesday morning",
+                          value = NA)
          ),
          column(6,
                 textInput("sell_price_hd4",
-                             "Sell price Tuesday afternoon",
-                             value = NA)
+                          "Sell price Tuesday afternoon",
+                          value = NA)
          ),
          column(6,
                 textInput("sell_price_hd5",
-                             "Sell price Wednesday morning",
-                             value = NA)
+                          "Sell price Wednesday morning",
+                          value = NA)
          ),
          column(6,
                 textInput("sell_price_hd6",
-                             "Sell price Wednesday afternoon",
-                             value = NA)
+                          "Sell price Wednesday afternoon",
+                          value = NA)
          )
        ),
        fluidRow(
          column(6,
                 textInput("sell_price_hd7",
-                             "Sell price Thursday morning",
-                             value = NA)
+                          "Sell price Thursday morning",
+                          value = NA)
          ),
          column(6,
                 textInput("sell_price_hd8",
-                             "Sell price Thursday afternoon",
-                             value = NA)
+                          "Sell price Thursday afternoon",
+                          value = NA)
          ),
          column(6,
                 textInput("sell_price_hd9",
-                             "Sell price Friday morning",
-                             value = NA)
+                          "Sell price Friday morning",
+                          value = NA)
          ),
          column(6,
                 textInput("sell_price_hd10",
-                             "Sell price Friday afternoon",
-                             value = NA)
+                          "Sell price Friday afternoon",
+                          value = NA)
          ),
          column(6,
                 textInput("sell_price_hd11",
-                             "Sell price Saturday morning",
-                             value = NA)
+                          "Sell price Saturday morning",
+                          value = NA)
          ),
          column(6,
                 textInput("sell_price_hd12",
-                             "Sell price Saturday afternoon",
-                             value = NA)
+                          "Sell price Saturday afternoon",
+                          value = NA)
          )
+       ),
+       fluidRow(
+         textInput("n_iterations",
+                   "How many iterations to sample?",
+                   value = 100)
        )
      ),
      
      # Show a plot of the generated distribution
      mainPanel(
        p("It ain't cute but it does the job, I hope.",
-         "Please be mindful that it takes a bit of time to re-estimate the probabilities when you update the data."),
+         "Please be mindful that it takes a bit of time to re-estimate the probabilities when you update the data.",
+         br(),
+         "To make the sampler run faster, decrease the number of iterations. However, percentage estimates will be less precise.",
+         br(),
+         "Conversely, to make trend percentage estimates more precise, increase the number of iterations, though it will take longer to generate your graph."),
        h2("What's the probability you're in a particular pattern overall?"),
        p("These probabilities are a bit noisy because they're generated from random draws of possible turnip prices."),
        tableOutput("tib"),
@@ -165,7 +173,11 @@ server <- function(input, output) {
     as.integer(input$buy_price)
   })
   
-  get_draws <- reactive({
+  get_n_iterations <- reactive({
+    as.integer(input$n_iterations)
+  })
+  
+  get_posterior <- reactive({
     ## construct de whole prior distribution ----
     
     given_prices <- get_givens()
@@ -250,23 +262,28 @@ server <- function(input, output) {
       mutate(prob_trend = prob_cond_prior / sum(prob_cond_prior)) %>%
       unnest(trends)
     
-    draws <- posterior %>%
+    return (posterior)
+  })
+  
+  get_draws <- reactive({
+    draws <- get_posterior() %>%
       select(pattern, id, prob_trend, halfday, price, starts_with("posterior")) %>%
       nest(trends = -c(pattern, id, prob_trend))
     
     draw_probs = draws %>% pull(prob_trend)
     
     draws %<>%
-      sample_n(n_iterations, replace = TRUE, weight = draw_probs) %>%
+      sample_n(get_n_iterations(), replace = TRUE, weight = draw_probs) %>%
       unnest(trends) %>%
       mutate(prices_draw = map2(posterior_min_pred, posterior_max_pred,
-                                ~tibble(halfday_id = 1:n_iterations) %>%
+                                ~tibble(halfday_id = 1:get_n_iterations()) %>%
                                   mutate(price_draw = runif(1:nrow(.), .x, .y) %>%
                                            round() %>%
                                            as.integer()))) %>%
       unnest(prices_draw) %>%
       mutate(price = coalesce(price, price_draw))
     
+    return (draws)
   })
   
   output$tib <- renderTable({
