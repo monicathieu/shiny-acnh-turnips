@@ -166,8 +166,8 @@ get_trend_dec <- function (given_prices,
       # impute the next day's rate
       # as written, this skips any days with missing data where a later day has data
       if (!is.na(pluck(predicted, "min_rate", i)) & is.na(pluck(predicted, "min_rate", i+1))) {
-        pluck(predicted, "min_rate", i+1) <- pluck(predicted, "min_rate", i) - mins
-        pluck(predicted, "max_rate", i+1) <- pluck(predicted, "max_rate", i) - maxs
+        pluck(predicted, "min_rate", i+1) <- pluck(predicted, "min_rate", i) + mins
+        pluck(predicted, "max_rate", i+1) <- pluck(predicted, "max_rate", i) + maxs
       }
     }
   }
