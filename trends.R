@@ -114,12 +114,15 @@ get_trend_spikesm <- function (given_prices, buy_price, peak_start) {
   pluck(predicted_peak, "max_pred", 1) <- 1.4 * buy_price
   pluck(predicted_peak, "min_pred", 2) <- 0.9 * buy_price
   pluck(predicted_peak, "max_pred", 2) <- 1.4 * buy_price
+  
+  peak_max_rate <- runif(1, 1.4, 2.0)
+  
   pluck(predicted_peak, "min_pred", 3) <- 1.4 * buy_price - 1
-  pluck(predicted_peak, "max_pred", 3) <- 2 * buy_price - 1
-  pluck(predicted_peak, "min_pred", 4) <- pluck(predicted_peak, "min_pred", 3)
-  pluck(predicted_peak, "max_pred", 4) <- pluck(predicted_peak, "max_pred", 3)
-  pluck(predicted_peak, "min_pred", 5) <- 1.4 * buy_price - 1
-  pluck(predicted_peak, "max_pred", 5) <- pluck(predicted_peak, "max_pred", 4) - 1
+  pluck(predicted_peak, "max_pred", 3) <- peak_max_rate * buy_price - 1
+  pluck(predicted_peak, "min_pred", 4) <- peak_max_rate * buy_price
+  pluck(predicted_peak, "max_pred", 4) <- pluck(predicted_peak, "min_pred", 4)
+  pluck(predicted_peak, "min_pred", 5) <- pluck(predicted_peak, "min_pred", 3)
+  pluck(predicted_peak, "max_pred", 5) <- pluck(predicted_peak, "max_pred", 3)
   
   # after peak: decreasing again
   predicted_post <- given_prices %>%
